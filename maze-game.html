@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maze Board</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 0;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+    }
+
+    .maze-container {
+      display: grid;
+      gap: 1px;
+      background: black;
+    }
+
+    .cell {
+      width: 20px;
+      height: 20px;
+      background: white;
+      text-align: center;
+      line-height: 20px;
+      font-size: 12px;
+    }
+
+    .cell.wall {
+      background: black;
+    }
+
+    .cell.start {
+      background: green;
+    }
+
+    .cell.end {
+      background: red;
+    }
+
+    .cell.path {
+      background: yellow;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label>Width: <input type="number" id="width" value="10" min="2"></label>
+    <label>Height: <input type="number" id="height" value="10" min="2"></label>
+    <button onclick="generateMaze()">Generate Maze</button>
+    <button onclick="randomizeWalls()">Randomize Walls</button>
+    <button onclick="findPath()">Find Path</button>
+  </div>
+  <div class="maze-container" id="maze"></div>
+  <p id="error-message" style="color: red; display: none;">No path exists!</p>
+
+  <script>
+    let mazeWidth = 10;
+    let mazeHeight = 10;
+    let startCell = { x: 0, y: 0 };
+    let endCell = { x: 9, y: 9 };
+
+    function generateMaze() {
+      // Clear any existing path before generating new maze
+      resetPath();
+      
+      mazeWidth = parseInt(document.getElementById('width').value);
+      mazeHeight = parseInt(document.getElementById('height').value);
+      const mazeContainer = document.getElementById('maze');
+      mazeContainer.style.gridTemplateColumns = `repeat(${mazeWidth}, 20px)`;
+      mazeContainer.innerHTML = '';
+
+      // Update end cell position to match new dimensions
+      endCell = { x: mazeWidth - 1, y: mazeHeight - 1 };
+
+      for (let y = 0; y < mazeHeight; y++) {
+        for (let x = 0; x < mazeWidth; x++) {
+          const cell = document.createElement('div');
+          cell.classList.add('cell');
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+
+          if (x === startCell.x && y === startCell.y) {
+            cell.classList.add('start');
+          } else if (x === endCell.x && y === endCell.y) {
+            cell.classList.add('end');
+          }
+
+          cell.addEventListener('click', () => handleCellClick(cell));
+          mazeContainer.appendChild(cell);
+        }
+      }
+    }
+
+    function handleCellClick(cell) {
+      // Clear path when changing start, end, or wall cells
+      resetPath();
+      
+      const x = parseInt(cell.dataset.x);
+      const y = parseInt(cell.dataset.y);
+
+      if (cell.classList.contains('start')) {
+        startCell = null;
+        cell.classList.remove('start');
+      } else if (cell.classList.contains('end')) {
+        endCell = null;
+        cell.classList.remove('end');
+      } else if (!startCell) {
+        startCell = { x, y };
+        cell.classList.add('start');
+      } else if (!endCell) {
+        endCell = { x, y };
+        cell.classList.add('end');
+      } else {
+        cell.classList.toggle('wall');
+      }
+    }
+
+    function randomizeWalls() {
+      // Clear path before randomizing walls
+      resetPath();
+      
+      const cells = document.querySelectorAll('.cell');
+      cells.forEach(cell => {
+        if (!cell.classList.contains('start') && !cell.classList.contains('end')) {
+          cell.classList.remove('wall');
+          if (Math.random() > 0.7) {
+            cell.classList.add('wall');
+          }
+        }
+      });
+    }
+
+    function resetPath() {
+      const cells = document.querySelectorAll('.cell');
+      cells.forEach(cell => {
+        cell.classList.remove('path');
+        cell.textContent = '';
+      });
+      document.getElementById('error-message').style.display = 'none';
+    }
+
+    function findPath() {
+      resetPath();
+
+      const errorMessage = document.getElementById('error-message');
+      errorMessage.style.display = 'none';
+
+      const maze = Array.from({ length: mazeHeight }, () => Array(mazeWidth).fill(0));
+      document.querySelectorAll('.cell').forEach(cell => {
+        const x = parseInt(cell.dataset.x);
+        const y = parseInt(cell.dataset.y);
+        if (cell.classList.contains('wall')) {
+          maze[y][x] = 1;
+        }
+      });
+
+      const directions = [
+        { x: 0, y: -1 },
+        { x: 0, y: 1 },
+        { x: -1, y: 0 },
+        { x: 1, y: 0 }
+      ];
+
+      const queue = [{ x: startCell.x, y: startCell.y, path: [] }];
+      const visited = Array.from({ length: mazeHeight }, () => Array(mazeWidth).fill(false));
+      visited[startCell.y][startCell.x] = true;
+
+      while (queue.length > 0) {
+        const { x, y, path } = queue.shift();
+
+        if (x === endCell.x && y === endCell.y) {
+          path.forEach((step, index) => {
+            const cell = document.querySelector(`.cell[data-x='${step.x}'][data-y='${step.y}']`);
+            if (!cell.classList.contains('start') && !cell.classList.contains('end')) {
+              cell.classList.add('path');
+              cell.textContent = index + 1;
+            }
+          });
+          return;
+        }
+
+        for (const dir of directions) {
+          const newX = x + dir.x;
+          const newY = y + dir.y;
+
+          if (
+            newX >= 0 && newX < mazeWidth &&
+            newY >= 0 && newY < mazeHeight &&
+            !visited[newY][newX] &&
+            maze[newY][newX] === 0
+          ) {
+            visited[newY][newX] = true;
+            queue.push({ x: newX, y: newY, path: [...path, { x: newX, y: newY }] });
+          }
+        }
+      }
+
+      errorMessage.style.display = 'block';
+    }
+
+    // Initial maze generation
+    generateMaze();
+  </script>
+</body>
+</html>
